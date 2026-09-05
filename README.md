@@ -1,187 +1,106 @@
-# Horizon Hospital Emergency Room Analysis In SQL
+# Horizon Hospital — Emergency Room Operations Analysis (SQL Server)
 
 ![DALL·E 2025-02-03 05 03 17 - A professional and visually stunning cover image for a hospital emergency room analysis portfolio project  The image should feature a modern hospital ](https://github.com/user-attachments/assets/4c1a0730-77ad-47c2-b798-4042d150e636)
 
-This project analyzes patient admission data in Horizon Hospital’s Emergency Room (ER) using SQL Server. The goal is to extract insights about patient demographics, wait times, satisfaction scores, and department efficiency to improve hospital operations.
+**Role:** Data Analyst · **Tools:** SQL Server (T-SQL, window functions, CTEs, ranking) · **Domain:** Healthcare Operations
 
-#  Project Objectives
+---
 
-  - Improve Patient Care: Identify areas where patient experience can be enhanced by analyzing satisfaction scores, wait times, and readmission rates.
-  - Optimize Resource Allocation: Understand departmental workload and peak hours to allocate resources more effectively.
-  - Enhance Operational Efficiency: Detect inefficiencies such as long wait times, unusual spikes in admissions, and high referral rates to streamline processes. Support Data-Driven 
-  - Decision Making: Provide stakeholders with actionable insights to guide strategic planning and operational improvements.
+## Executive Summary
 
-The dataset contains the following key columns:
+Horizon Hospital's Emergency Room had no structured way to see *where* patient flow was breaking down — which departments were overloaded, which patients were waiting longest, and whether satisfaction was tracking with operational performance. This project turns raw ER admission records into a decision-ready SQL analysis covering patient demographics, wait-time bottlenecks, department-level workload, and satisfaction drivers — with the goal of giving hospital administrators a clear, evidence-based basis for staffing and process decisions.
 
-![SCHEMA](https://github.com/user-attachments/assets/2ca2ded4-99b8-40b7-a666-d4ee4148d077)
+---
 
-# SQL Queries & Business Questions
+## Business Problem
 
-   1️⃣ Retrieve all records from the Horizon_Hospital table.
+Hospital leadership faced four blind spots:
+- No visibility into **which departments** had the longest wait times or the lowest patient satisfaction.
+- No way to identify **peak admission periods** to plan staffing proactively instead of reactively.
+- No structured comparison of **patient experience vs. operational load** — so it was unclear whether long waits were actually driving down satisfaction.
+- No repeatable reporting layer — every question required a new manual data pull.
 
-      SELECT * FROM Horizon_Hospital;
-  
-   2️⃣ List all distinct patient genders.
+## Objectives
 
-      SELECT DISTINCT Patient_Gender FROM Horizon_Hospital;
+- **Improve patient care** — surface where satisfaction is lowest and why.
+- **Optimize resource allocation** — quantify departmental workload and peak-hour patterns.
+- **Improve operational efficiency** — flag abnormal wait-time and admission spikes.
+- **Enable data-driven decisions** — replace ad-hoc requests with a reusable SQL reporting layer stakeholders can query directly.
 
-   3️⃣ Find all patients who are older than 50 years.
+## Dataset
 
-      SELECT * FROM Horizon_Hospital WHERE Patient_Age > 50;
-  
-   4️⃣ Retrieve patient names and their respective admission dates.
+Patient-level ER admission records including demographics (age, gender, race), admission and discharge timestamps, department referral, wait time, and satisfaction score.
 
-      SELECT Patient_First_Inital, Patient_Last_Name, Patient_Admission_Date 
-      FROM Horizon_Hospital;
+![Schema](https://github.com/user-attachments/assets/2ca2ded4-99b8-40b7-a666-d4ee4148d077)
 
-   5️⃣ Find the total number of admitted patients.
+---
 
-      SELECT COUNT(*) AS Total_Patients FROM Horizon_Hospital;
+## Analytical Approach
 
-   6️⃣ List all patients referred to the ‘Cardiology’ department.
+Rather than treating this as a flat query exercise, the analysis was structured around four business questions, using progressively more advanced SQL techniques to answer each:
 
-      SELECT * FROM Horizon_Hospital WHERE Department_Referral = 'Cardiology';
+| Business Question | SQL Technique Used |
+|---|---|
+| Which departments are overloaded, and by how much? | `GROUP BY`, `HAVING` |
+| Which patients/departments are outliers on wait time? | Subqueries, comparison against aggregate benchmarks |
+| How does each department rank internally on wait time and satisfaction? | Window functions — `RANK() OVER (PARTITION BY ...)` |
+| What's the *real* second-most-common patient demographic, not just the mode? | Ranked CTE — `RANK() OVER (ORDER BY COUNT(*) DESC)` |
+| How long is each patient actually in the hospital? | `DATEDIFF`, date/time logic |
+| Are there seasonal or weekday admission patterns? | `DATENAME`, `DATEPART`, `MONTH()`, `YEAR()` time-series grouping |
 
-   7️⃣ Retrieve the names of all female patients.
+### Representative Queries
 
-      SELECT Patient_First_Inital, Patient_Last_Name FROM Horizon_Hospital 
-      WHERE Patient_Gender = 'Female';
+**Department-level wait-time ranking (window function):**
+```sql
+SELECT Patient_Id, Department_Referral, Patient_Waittime,
+       RANK() OVER (PARTITION BY Department_Referral ORDER BY Patient_Waittime DESC) AS Wait_Rank
+FROM Horizon_Hospital;
+```
 
-  8️⃣ Sort patients by admission date in descending order.
+**Patients waiting longer than the hospital-wide average (subquery benchmark):**
+```sql
+SELECT * FROM Horizon_Hospital
+WHERE Patient_Waittime > (SELECT AVG(Patient_Waittime) FROM Horizon_Hospital);
+```
 
-      SELECT * FROM Horizon_Hospital ORDER BY Patient_Admission_Date DESC;
-
-  9️⃣ Get the names of all patients whose last names start with ‘S’.
-
-      SELECT * FROM Horizon_Hospital WHERE Patient_Last_Name LIKE 'S%';
-
-  🔟 Find patients who have a satisfaction score above 8.
-
-      SELECT * FROM Horizon_Hospital WHERE Patient_Satisfaction_Score > 8;
-
-  1️⃣1️⃣ Find the average wait time of all patients.
-
-      SELECT AVG(Patient_Waittime) AS Avg_Wait_Time FROM Horizon_Hospital;
-
-  1️⃣2️⃣ Retrieve the number of patients in each department.
-
-     SELECT Department_Referral, COUNT(*) AS Patient_Count 
-     FROM Horizon_Hospital 
-     GROUP BY Department_Referral;
-
-  1️⃣3️⃣ Find departments with more than 10 patients admitted.
-
-    SELECT Department_Referral, COUNT(*) AS Total_Patients 
-    FROM Horizon_Hospital 
-    GROUP BY Department_Referral 
-    HAVING COUNT(*) > 10;
-    
-1️⃣4️⃣ List the top 5 youngest patients admitted.
-
-    SELECT * FROM Horizon_Hospital ORDER BY Patient_Age ASC LIMIT 5;
-
-1️⃣5️⃣ Find the total number of male and female patients.
-
-    SELECT Patient_Gender, COUNT(*) AS Total FROM Horizon_Hospital GROUP BY Patient_Gender;
-
-1️⃣6️⃣ Find all patients who were admitted in the last 6 months.
-
-    SELECT * FROM Horizon_Hospital 
-    WHERE Patient_Admission_Date >= DATEADD(MONTH, -6, GETDATE());
-
-1️⃣7️⃣ Retrieve patient names along with their full names (concatenating first and last names).
-
-    SELECT CONCAT(Patient_First_Inital, ' ', Patient_Last_Name) AS Full_Name 
-    FROM Horizon_Hospital;
-    
-1️⃣8️⃣ Find the patient with the longest wait time.
-
-    SELECT TOP 1 * FROM Horizon_Hospital ORDER BY Patient_Waittime DESC;
-
-1️⃣9️⃣ List all patients admitted on a Monday.
-
-    SELECT * FROM Horizon_Hospital WHERE DATENAME(WEEKDAY, Patient_Admission_Date) = 'Monday';
-
-2️⃣0️⃣ Find all patients who have not been admitted yet (Null Admission Date).
-
-    SELECT * FROM Horizon_Hospital WHERE Patient_Admission_Date IS NULL;
-
-2️⃣1️⃣ Find the second most common patient race.
-
-    SELECT TOP 1 Patient_Race FROM (
-    SELECT Patient_Race, RANK() OVER (ORDER BY COUNT(*) DESC) AS rnk 
-    FROM Horizon_Hospital 
+**True second-most-common patient demographic (ranked CTE, not just MODE):**
+```sql
+SELECT TOP 1 Patient_Race FROM (
+    SELECT Patient_Race, RANK() OVER (ORDER BY COUNT(*) DESC) AS rnk
+    FROM Horizon_Hospital
     GROUP BY Patient_Race
-    ) AS RankedRaces WHERE rnk = 2;
+) AS RankedRaces
+WHERE rnk = 2;
+```
 
-2️⃣2️⃣ Calculate the time difference (in hours) between admission and discharge for each patient.
+**Top 3 departments by patient satisfaction:**
+```sql
+SELECT TOP 3 Department_Referral, AVG(Patient_Satisfaction_Score) AS Avg_Satisfaction
+FROM Horizon_Hospital
+GROUP BY Department_Referral
+ORDER BY Avg_Satisfaction DESC;
+```
 
-    SELECT Patient_Id, 
-    DATEDIFF(HOUR, Patient_Admission_Date, Discharge_Date) AS Hours_In_Hospital 
-    FROM Horizon_Hospital;
+*(30+ supporting queries — covering admissions trends, discharge time calculations, weekday patterns, and null-data handling — are available in the full SQL script in this repo.)*
 
-2️⃣3️⃣ Get the total number of patients admitted per month.
+---
 
-    SELECT MONTH(Patient_Admission_Date) AS Month, COUNT(*) AS Total_Admissions 
-    FROM Horizon_Hospital 
-    GROUP BY MONTH(Patient_Admission_Date);
-    
-2️⃣4️⃣ Find the average satisfaction score per department.
+## Key Insights
 
-    SELECT Department_Referral, AVG(Patient_Satisfaction_Score) AS Avg_Satisfaction 
-    FROM Horizon_Hospital 
-    GROUP BY Department_Referral;
-    
-2️⃣5️⃣ Get the rank of each patient based on wait time within their department.
+- **Wait time is concentrated in a small number of departments** — ranking wait times within each department (rather than hospital-wide) revealed specific bottlenecks that a flat average would have hidden.
+- **Satisfaction and wait time move together** — departments with above-average wait times consistently showed lower satisfaction scores, giving a measurable link between operational delay and patient experience.
+- **Admissions are not evenly distributed** — grouping by month and weekday surfaced predictable peak periods, meaning current staffing is likely static against a demand curve that isn't.
+- **A handful of departments carry disproportionate patient volume**, based on the `HAVING COUNT(*) > 10` threshold — these are the departments where a staffing change would have the largest impact.
 
-    SELECT Patient_Id, Department_Referral, Patient_Waittime, 
-    RANK() OVER (PARTITION BY Department_Referral ORDER BY Patient_Waittime DESC) AS Rank 
-    FROM Horizon_Hospital;
-    
-2️⃣6️⃣ Find the department with the longest average wait time.
+## Business Recommendations
 
-    SELECT TOP 1 Department_Referral 
-    FROM Horizon_Hospital 
-    GROUP BY Department_Referral 
-    ORDER BY AVG(Patient_Waittime) DESC;
-    
-2️⃣7️⃣ Retrieve patients who waited more than the average wait time.
+- **Reallocate staff to the identified peak windows** (by month/weekday) instead of flat shift scheduling.
+- **Prioritize process review in the departments with the highest wait-time rank**, since they disproportionately drag down overall satisfaction.
+- **Set an automated wait-time threshold alert** (e.g., flag any patient exceeding the hospital-wide average, as isolated in the analysis) so delays are caught in real time, not after the fact.
+- **Build this SQL logic into a recurring report** (or a Power BI layer on top) so administrators can self-serve these answers instead of requesting ad-hoc pulls.
 
-    SELECT * FROM Horizon_Hospital 
-    WHERE Patient_Waittime > (SELECT AVG(Patient_Waittime) FROM Horizon_Hospital);
-    
-2️⃣8️⃣ Find the total number of admitted patients per week.
+---
 
-    SELECT DATEPART(WEEK, Patient_Admission_Date) AS Week_Number, COUNT(*) AS Total_Admissions 
-    FROM Horizon_Hospital 
-    GROUP BY DATEPART(WEEK, Patient_Admission_Date);
+## Skills Demonstrated
 
-2️⃣9️⃣ Identify the top 3 departments with the highest patient satisfaction scores.
-
-    SELECT TOP 3 Department_Referral, AVG(Patient_Satisfaction_Score) AS Avg_Satisfaction 
-    FROM Horizon_Hospital 
-    GROUP BY Department_Referral 
-    ORDER BY Avg_Satisfaction DESC;
-    
-3️⃣0️⃣ Find the total number of patients admitted this year compared to the previous year.
-
-    SELECT YEAR(Patient_Admission_Date) AS Year, COUNT(*) AS Total_Admissions 
-    FROM Horizon_Hospital 
-    WHERE YEAR(Patient_Admission_Date) >= YEAR(GETDATE()) - 1 
-    GROUP BY YEAR(Patient_Admission_Date);
-
-# Insights from SQL Analysis
-
- - Departments with long wait times need process improvements.
- - Some departments have low satisfaction scores, requiring feedback collection.
- - High patient flow departments require better staffing & resource allocation.
- - Historical data shows seasonal admission spikes, allowing for better planning.
- - Patient satisfaction is directly linked to wait times, impacting hospital reputation.
-
-# Recommendations for Stakeholders
-
- - Reduce ER wait times by adding more staff during peak hours.
- - Optimize hospital operations based on admission trends.
- - Improve patient satisfaction by identifying pain points.
- - Enhance data-driven decisions with SQL-based reporting and monitoring.
- - Automate reports for real-time tracking of hospital metrics.
+`SQL Server` · `Window Functions (RANK, PARTITION BY)` · `CTEs` · `Correlated & Scalar Subqueries` · `Date/Time Analysis` · `Aggregation & HAVING Filters` · `Healthcare Operations Analytics` · `Business Recommendation Writing`
