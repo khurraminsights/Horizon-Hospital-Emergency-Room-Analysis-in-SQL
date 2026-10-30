@@ -2,6 +2,9 @@
 
 # Horizon Hospital | Emergency Room Analytics
 
+<img width="1672" height="941" alt="Horizon Hospital Emergency Room Analytics Banner" src="https://github.com/user-attachments/assets/7875920e-2150-491c-a844-1126bc8db188" />
+
+
 ### SQL Server Portfolio Case Study
 
 **Patient Flow · Waiting Times · Department Referrals · Patient Satisfaction · Admission Trends**
