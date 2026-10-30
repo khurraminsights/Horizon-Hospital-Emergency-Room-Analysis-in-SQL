@@ -17,8 +17,6 @@
 
 </div>
 
-> **Banner placement:** Drag the Horizon Hospital banner image into GitHub's README editor **above the first heading**. GitHub will create the hosted image link automatically. The banner is conceptual artwork, not a screenshot of a deployed hospital system.
->
 > **Project scope:** Independent educational SQL analysis based on the supplied `horizon_hospital.sql` script. The attached script contains analysis queries but **does not contain the underlying patient dataset, `CREATE TABLE` definition, actual query output, or evidence of a deployed clinical dashboard**. Hospital-specific performance results and clinical outcomes therefore cannot be verified from it.
 
 ---
