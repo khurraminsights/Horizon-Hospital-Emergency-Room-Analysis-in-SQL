@@ -298,16 +298,6 @@ To reproduce the full results, the source table schema and example data must als
 
 ---
 
-## Next Improvements
-
-1. Add a reproducible schema and synthetic dataset (without real patient information).
-2. Correct the mismatched SQL questions and query logic.
-3. Run the script in SQL Server and save verified aggregate outputs.
-4. Add a short data dictionary explaining wait-time units, timestamps and score ranges.
-5. If a reporting dashboard is built later, include actual screenshots and clearly define measures.
-
----
-
 <div align="center">
 
 ### About the Analyst
