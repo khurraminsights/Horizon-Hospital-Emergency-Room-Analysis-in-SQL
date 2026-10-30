@@ -2,8 +2,6 @@
 
 # Horizon Hospital | Emergency Room Analytics
 
-	
-
 ### SQL Server Portfolio Case Study
 
 **Patient Flow · Waiting Times · Department Referrals · Patient Satisfaction · Admission Trends**
