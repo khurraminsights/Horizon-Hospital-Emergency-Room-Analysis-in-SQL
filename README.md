@@ -1,106 +1,325 @@
-# Horizon Hospital — Emergency Room Operations Analysis (SQL Server)
+<div align="center">
 
-![DALL·E 2025-02-03 05 03 17 - A professional and visually stunning cover image for a hospital emergency room analysis portfolio project  The image should feature a modern hospital ](https://github.com/user-attachments/assets/4c1a0730-77ad-47c2-b798-4042d150e636)
+# Horizon Hospital | Emergency Room Analytics
 
-**Role:** Data Analyst · **Tools:** SQL Server (T-SQL, window functions, CTEs, ranking) · **Domain:** Healthcare Operations
+### SQL Server Portfolio Case Study
+
+**Patient Flow · Waiting Times · Department Referrals · Patient Satisfaction · Admission Trends**
+
+![SQL Server](https://img.shields.io/badge/SQL_Server-T--SQL-CC2927?style=for-the-badge) ![Healthcare](https://img.shields.io/badge/Domain-Healthcare_Analytics-0099A8?style=for-the-badge) ![Approach](https://img.shields.io/badge/Approach-Exploratory_SQL-163D5B?style=for-the-badge) ![Status](https://img.shields.io/badge/Project-Independent_Case_Study-3D6475?style=for-the-badge)
+
+*Using T-SQL to explore emergency-room patient activity and convert operational questions into reproducible analytical queries.*
+
+[Overview](#executive-summary) · [Data](#dataset--field-guide) · [Questions](#analytical-question-framework) · [SQL](#sql-implementation-highlights) · [QA](#data-quality--sql-review) · [Recommendations](#operational-recommendations)
+
+</div>
+
+> **Banner placement:** Drag the Horizon Hospital banner image into GitHub's README editor **above the first heading**. GitHub will create the hosted image link automatically. The banner is conceptual artwork, not a screenshot of a deployed hospital system.
+>
+> **Project scope:** Independent educational SQL analysis based on the supplied `horizon_hospital.sql` script. The attached script contains analysis queries but **does not contain the underlying patient dataset, `CREATE TABLE` definition, actual query output, or evidence of a deployed clinical dashboard**. Hospital-specific performance results and clinical outcomes therefore cannot be verified from it.
 
 ---
 
 ## Executive Summary
 
-Horizon Hospital's Emergency Room had no structured way to see *where* patient flow was breaking down — which departments were overloaded, which patients were waiting longest, and whether satisfaction was tracking with operational performance. This project turns raw ER admission records into a decision-ready SQL analysis covering patient demographics, wait-time bottlenecks, department-level workload, and satisfaction drivers — with the goal of giving hospital administrators a clear, evidence-based basis for staffing and process decisions.
+Emergency departments need visibility into patient arrivals, waiting times, referral demand and the patient experience. SQL can help identify operational patterns that deserve closer investigation, provided metrics are correctly defined and data quality is checked.
+
+This project applies **Microsoft SQL Server (T-SQL)** to patient-level hospital records to explore:
+
+- **Admissions and activity:** patient volume, monthly and weekly patterns, recent visits and day-of-week visits.
+- **Waiting times:** average waiting time, longest waits, department-level comparisons and patients above the overall average.
+- **Department referrals:** referral volume, larger departments and departmental waiting-time ranks.
+- **Patient experience:** satisfaction scores, missing feedback and top-rated departments.
+- **Patient characteristics:** gender, age and other fields included in the source queries, considered descriptively rather than as causes of care outcomes.
+
+**Role:** Data Analyst  
+**Primary technology:** Microsoft SQL Server / T-SQL  
+**Project type:** Exploratory SQL portfolio analysis  
+**Deliverable reviewed:** `horizon_hospital.sql`
+
+### What this project demonstrates
+
+Translating healthcare operations questions into SQL filters, aggregations, date analysis, subqueries, `HAVING`, `RANK()` and grouped reporting—while recognizing where query logic needs further validation.
 
 ---
 
 ## Business Problem
 
-Hospital leadership faced four blind spots:
-- No visibility into **which departments** had the longest wait times or the lowest patient satisfaction.
-- No way to identify **peak admission periods** to plan staffing proactively instead of reactively.
-- No structured comparison of **patient experience vs. operational load** — so it was unclear whether long waits were actually driving down satisfaction.
-- No repeatable reporting layer — every question required a new manual data pull.
+An emergency-room operations team might ask:
 
-## Objectives
+1. How many patient records are recorded, and how is activity distributed over time?
+2. Which referral departments receive the highest patient volume?
+3. How long do patients wait overall and by department?
+4. Which patients wait longer than the current dataset average?
+5. How do patient satisfaction scores differ across referral departments?
+6. Which patient and timestamp records require validation before reporting?
 
-- **Improve patient care** — surface where satisfaction is lowest and why.
-- **Optimize resource allocation** — quantify departmental workload and peak-hour patterns.
-- **Improve operational efficiency** — flag abnormal wait-time and admission spikes.
-- **Enable data-driven decisions** — replace ad-hoc requests with a reusable SQL reporting layer stakeholders can query directly.
-
-## Dataset
-
-Patient-level ER admission records including demographics (age, gender, race), admission and discharge timestamps, department referral, wait time, and satisfaction score.
-
-![Schema](https://github.com/user-attachments/assets/2ca2ded4-99b8-40b7-a666-d4ee4148d077)
+**Analytical goal:** Create a reliable foundation for reporting operational activity and identifying possible service bottlenecks—not diagnosing patients or inferring clinical causation.
 
 ---
 
-## Analytical Approach
+## Dataset & Field Guide
 
-Rather than treating this as a flat query exercise, the analysis was structured around four business questions, using progressively more advanced SQL techniques to answer each:
+The supplied SQL uses one main table: **`Horizon_Hospital`**.
 
-| Business Question | SQL Technique Used |
+| Column referenced in SQL | Analytical purpose |
 |---|---|
-| Which departments are overloaded, and by how much? | `GROUP BY`, `HAVING` |
-| Which patients/departments are outliers on wait time? | Subqueries, comparison against aggregate benchmarks |
-| How does each department rank internally on wait time and satisfaction? | Window functions — `RANK() OVER (PARTITION BY ...)` |
-| What's the *real* second-most-common patient demographic, not just the mode? | Ranked CTE — `RANK() OVER (ORDER BY COUNT(*) DESC)` |
-| How long is each patient actually in the hospital? | `DATEDIFF`, date/time logic |
-| Are there seasonal or weekday admission patterns? | `DATENAME`, `DATEPART`, `MONTH()`, `YEAR()` time-series grouping |
+| `Patient_Id` | Patient identifier used in counts and rankings |
+| `Patient_First_Inital`, `Patient_Last_Name` | Displayed patient name fields |
+| `Patient_Age` | Age-group and patient filtering |
+| `Patient_Gender` | Patient composition |
+| `Patient_Race` | Descriptive demographic counts |
+| `Patient_Admission_Date` | Admission date, year, month and weekday |
+| `Department_Referral` | Department-level referral analysis |
+| `Patient_Waittime` | Waiting-time comparisons and rankings |
+| `Patient_Satisfaction_Score` | Patient-experience reporting and missing-value checks |
 
-### Representative Queries
+*Field names reflect the supplied SQL, including `Patient_First_Inital` and `Patient_Waittime`. Column types, date coverage, units, uniqueness and the table schema were not supplied.*
 
-**Department-level wait-time ranking (window function):**
-```sql
-SELECT Patient_Id, Department_Referral, Patient_Waittime,
-       RANK() OVER (PARTITION BY Department_Referral ORDER BY Patient_Waittime DESC) AS Wait_Rank
-FROM Horizon_Hospital;
+### Analytical workflow
+
+```text
+Horizon_Hospital (patient-level records)
+                 |
+       Data-quality review
+                 |
+            T-SQL queries
+                 |
+  +--------------+--------------+
+  |              |              |
+Admissions   Referrals &     Satisfaction
+& Trends      Wait Times      & Missingness
+  |              |              |
+  +--------------+--------------+
+                 |
+       Operational questions
+                 |
+     Validate -> Interpret -> Report
 ```
-
-**Patients waiting longer than the hospital-wide average (subquery benchmark):**
-```sql
-SELECT * FROM Horizon_Hospital
-WHERE Patient_Waittime > (SELECT AVG(Patient_Waittime) FROM Horizon_Hospital);
-```
-
-**True second-most-common patient demographic (ranked CTE, not just MODE):**
-```sql
-SELECT TOP 1 Patient_Race FROM (
-    SELECT Patient_Race, RANK() OVER (ORDER BY COUNT(*) DESC) AS rnk
-    FROM Horizon_Hospital
-    GROUP BY Patient_Race
-) AS RankedRaces
-WHERE rnk = 2;
-```
-
-**Top 3 departments by patient satisfaction:**
-```sql
-SELECT TOP 3 Department_Referral, AVG(Patient_Satisfaction_Score) AS Avg_Satisfaction
-FROM Horizon_Hospital
-GROUP BY Department_Referral
-ORDER BY Avg_Satisfaction DESC;
-```
-
-*(30+ supporting queries — covering admissions trends, discharge time calculations, weekday patterns, and null-data handling — are available in the full SQL script in this repo.)*
 
 ---
 
-## Key Insights
+## Analytical Question Framework
 
-- **Wait time is concentrated in a small number of departments** — ranking wait times within each department (rather than hospital-wide) revealed specific bottlenecks that a flat average would have hidden.
-- **Satisfaction and wait time move together** — departments with above-average wait times consistently showed lower satisfaction scores, giving a measurable link between operational delay and patient experience.
-- **Admissions are not evenly distributed** — grouping by month and weekday surfaced predictable peak periods, meaning current staffing is likely static against a demand curve that isn't.
-- **A handful of departments carry disproportionate patient volume**, based on the `HAVING COUNT(*) > 10` threshold — these are the departments where a staffing change would have the largest impact.
+The original script is organized into **basic and intermediate** exercises followed by more advanced grouped and window-function analysis. The groupings below preserve those topics but make them easier for hiring managers to scan.
 
-## Business Recommendations
+| Analysis theme | Questions addressed | Core SQL concepts |
+|---|---|---|
+| **Patient exploration** | List records; distinct genders; patients over 50; patient names and admissions; total patients | `SELECT`, `DISTINCT`, `WHERE`, `COUNT`, `CONCAT`, `CAST` |
+| **Patient filters** | Physiotherapy referrals; female patients; surname beginning with S; satisfaction filtering | `WHERE`, `LIKE`, `IS NULL` |
+| **Time-based activity** | Latest admissions; past six months; Monday admissions; monthly/weekly totals; current and prior year | `ORDER BY`, `DATEADD`, `DATENAME`, `DATEPART`, `YEAR` |
+| **Patient wait times** | Overall average; longest wait; above-average waits; department with highest average; within-department patient rank | `AVG`, `TOP`, scalar subquery, `RANK() OVER` |
+| **Department performance** | Counts per referral department; departments with over 10 patients; satisfaction by department; top three by satisfaction | `GROUP BY`, `HAVING`, `AVG`, `COUNT` |
+| **Patient composition** | Gender counts; age filtering; second-most-common race | `GROUP BY`, `RANK()` |
+| **Feedback completeness** | Patients with null satisfaction scores | `IS NULL` |
 
-- **Reallocate staff to the identified peak windows** (by month/weekday) instead of flat shift scheduling.
-- **Prioritize process review in the departments with the highest wait-time rank**, since they disproportionately drag down overall satisfaction.
-- **Set an automated wait-time threshold alert** (e.g., flag any patient exceeding the hospital-wide average, as isolated in the analysis) so delays are caught in real time, not after the fact.
-- **Build this SQL logic into a recurring report** (or a Power BI layer on top) so administrators can self-serve these answers instead of requesting ad-hoc pulls.
+These are **queries implemented or attempted in the supplied script**, not verified results from patient records.
+
+---
+
+## SQL Implementation Highlights
+
+The following examples are **improved illustrative versions** of the original SQL questions. They are not replacements for the source script; run them only after confirming the actual table schema and data types.
+
+### 01 — Patient volume by month
+
+```sql
+SELECT
+    DATEFROMPARTS(
+        YEAR(Patient_Admission_Date),
+        MONTH(Patient_Admission_Date), 1
+    ) AS AdmissionMonth,
+    COUNT(*) AS PatientRecords
+FROM dbo.Horizon_Hospital
+WHERE Patient_Admission_Date IS NOT NULL
+GROUP BY
+    YEAR(Patient_Admission_Date),
+    MONTH(Patient_Admission_Date)
+ORDER BY AdmissionMonth;
+```
+
+**Why this matters:** Grouping by **year and month** avoids accidentally combining the same month across different years. `COUNT(*)` counts rows, not necessarily unique patients or completed admissions.
+
+### 02 — Average wait time by referral department
+
+```sql
+SELECT
+    Department_Referral,
+    COUNT(*) AS PatientRecords,
+    AVG(CAST(Patient_Waittime AS DECIMAL(12,2)))
+        AS AvgWaitMinutes
+FROM dbo.Horizon_Hospital
+WHERE Patient_Waittime IS NOT NULL
+GROUP BY Department_Referral
+ORDER BY AvgWaitMinutes DESC;
+```
+
+**Why this matters:** Compare waiting times alongside department-level volumes. The label “minutes” assumes the source field is recorded in minutes, as suggested by the original script; confirm this before publication.
+
+### 03 — Patients waiting above the overall average
+
+```sql
+WITH OverallWait AS (
+    SELECT AVG(CAST(Patient_Waittime AS DECIMAL(12,2)))
+        AS AvgWait
+    FROM dbo.Horizon_Hospital
+    WHERE Patient_Waittime IS NOT NULL
+)
+SELECT
+    h.Patient_Id,
+    h.Department_Referral,
+    h.Patient_Waittime,
+    w.AvgWait
+FROM dbo.Horizon_Hospital AS h
+CROSS JOIN OverallWait AS w
+WHERE h.Patient_Waittime > w.AvgWait
+ORDER BY h.Patient_Waittime DESC;
+```
+
+**Why this matters:** Makes the threshold explicit and helps identify unusually long waits for further operational investigation.
+
+### 04 — Ranking waiting times within departments
+
+```sql
+SELECT
+    Patient_Id,
+    Department_Referral,
+    Patient_Waittime,
+    RANK() OVER (
+        PARTITION BY Department_Referral
+        ORDER BY Patient_Waittime DESC
+    ) AS DepartmentWaitRank
+FROM dbo.Horizon_Hospital
+WHERE Patient_Waittime IS NOT NULL;
+```
+
+**Why this matters:** Window functions compare patients **within** the same department instead of across the whole hospital. Equal waiting times receive the same rank.
+
+### 05 — Patient satisfaction by referral department
+
+```sql
+SELECT TOP (3)
+    Department_Referral,
+    COUNT(Patient_Satisfaction_Score) AS Responses,
+    AVG(CAST(Patient_Satisfaction_Score AS DECIMAL(12,2)))
+        AS AvgSatisfaction
+FROM dbo.Horizon_Hospital
+WHERE Patient_Satisfaction_Score IS NOT NULL
+GROUP BY Department_Referral
+ORDER BY AvgSatisfaction DESC, Responses DESC;
+```
+
+**Why this matters:** Ranking departments only on average satisfaction can be misleading if very few patients responded. Display the **response count** with the score and check the rating scale.
+
+### 06 — Admission activity: current and previous year
+
+```sql
+SELECT
+    YEAR(Patient_Admission_Date) AS AdmissionYear,
+    COUNT(*) AS PatientRecords
+FROM dbo.Horizon_Hospital
+WHERE Patient_Admission_Date >=
+    DATEFROMPARTS(YEAR(GETDATE()) - 1, 1, 1)
+  AND Patient_Admission_Date <
+    DATEFROMPARTS(YEAR(GETDATE()) + 1, 1, 1)
+GROUP BY YEAR(Patient_Admission_Date)
+ORDER BY AdmissionYear;
+```
+
+**Why this matters:** Limits results to the calendar years intended by the question. A fair year-on-year comparison may additionally require **year-to-date vs. year-to-date** normalization.
+
+---
+
+## Data Quality & SQL Review
+
+Reviewing analytical logic is important in healthcare reporting. The original script contains several places where the **question and SQL do not fully match**:
+
+| Source question / query | Issue | Improvement |
+|---|---|---|
+| “Satisfaction score above 8” | Query uses `< 5` | Use `> 8` if the source score scale supports it |
+| “Youngest patients aged 15–25” | Query filters `BETWEEN '25' AND '55'` | Use `BETWEEN 15 AND 25` on a numeric age column |
+| “Patients admitted per month” | Query groups by `Patient_Id` and month name | Aggregate by month **and year** without patient ID, unless patient-level detail is intended |
+| “Department with longest average wait” | Query orders grouped records but does not return an aggregate or `TOP 1` | Return average wait and select the top department |
+| “Second most common race” | `RANK()` may return multiple tied categories | Define tie handling and show supporting counts |
+| “Patients admitted per week” | Week number alone mixes years | Group by year and a consistent week definition |
+| “Patients in past six months” | Uses `GETDATE()` | Suitable for a live report; for historical datasets use a clear fixed as-of date |
+| Initial `CREATE DATABASE` followed by table query | No table schema or data import included | Document prerequisite database/table setup |
+
+### Recommended validation checklist
+
+- [ ] Confirm patient identifier uniqueness and what one record represents.
+- [ ] Verify `Patient_Waittime` units and missing/negative values.
+- [ ] Confirm the permitted satisfaction-score scale and missing-response rate.
+- [ ] Confirm admission timestamps and historical reporting dates.
+- [ ] Check spelling and standardization of department names.
+- [ ] Separate demographic **description** from explanations of service outcomes.
+- [ ] Verify every reported count, average and ranked result from executed SQL output.
+- [ ] Publish only aggregate or appropriately de-identified patient data.
+
+> **Privacy:** Patient names, IDs and potentially identifying row-level combinations should not appear in public screenshots or sample exports from real health records. Use synthetic or properly de-identified examples for a public GitHub portfolio.
+
+---
+
+## Operational Recommendations
+
+The script provides methods for investigation; it does **not** include actual results showing that a particular hospital department is underperforming or that interventions improved care.
+
+| Decision area | What to examine | Possible follow-up |
+|---|---|---|
+| **Long waits** | Department averages, patient counts and distribution of wait times | Review capacity, arrival peaks and triage workflow |
+| **Department pressure** | Referral volumes by date and department | Compare workload with available resources |
+| **Admissions** | Weekday, month and year trends | Investigate patterns before planning capacity changes |
+| **Patient experience** | Satisfaction, response counts and missing scores | Examine whether low scores align with waits and other factors |
+| **Reporting quality** | Nulls, data types, date filters and metric definitions | Standardize validated KPI calculations |
+
+These are suggested analytical next steps, not verified clinical recommendations or measured outcomes.
 
 ---
 
 ## Skills Demonstrated
 
-`SQL Server` · `Window Functions (RANK, PARTITION BY)` · `CTEs` · `Correlated & Scalar Subqueries` · `Date/Time Analysis` · `Aggregation & HAVING Filters` · `Healthcare Operations Analytics` · `Business Recommendation Writing`
+**SQL fundamentals:** `SELECT`, `WHERE`, `DISTINCT`, `LIKE`, `COUNT`, `CAST`, `CONCAT`.  
+**Aggregations:** `AVG`, `GROUP BY`, `HAVING`, `TOP`, sorting.  
+**Date analysis:** `DATEADD`, `DATEPART`, `DATENAME`, `YEAR`.  
+**Advanced techniques:** scalar subqueries, `RANK() OVER (PARTITION BY ...)`.  
+**Analytical practice:** KPI definition, grouped comparisons, missing-value review and error identification.
+
+---
+
+## Repository Files
+
+| File | Description |
+|---|---|
+| `horizon_hospital.sql` | Original SQL script with basic, intermediate and window-function questions |
+| `README.md` | Project context, techniques, SQL examples, technical review and recommended validation |
+
+To reproduce the full results, the source table schema and example data must also be provided. No Power BI report or live dashboard is established by the supplied script.
+
+---
+
+## Next Improvements
+
+1. Add a reproducible schema and synthetic dataset (without real patient information).
+2. Correct the mismatched SQL questions and query logic.
+3. Run the script in SQL Server and save verified aggregate outputs.
+4. Add a short data dictionary explaining wait-time units, timestamps and score ranges.
+5. If a reporting dashboard is built later, include actual screenshots and clearly define measures.
+
+---
+
+<div align="center">
+
+### About the Analyst
+
+**Khurram Naveed**  
+Data Analyst | SQL Server | Business Intelligence
+
+[![GitHub](https://img.shields.io/badge/GitHub-khurraminsights-181717?style=for-the-badge&logo=github)](https://github.com/khurraminsights)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/khurram-naveed-0083851aa/)
+
+**From healthcare data to clearer operational questions.**
+
+*Independent SQL analytics portfolio project.*
+
+</div>
+
